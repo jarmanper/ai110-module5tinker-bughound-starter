@@ -1,3 +1,4 @@
+import re
 from typing import Dict, List
 
 
@@ -56,6 +57,12 @@ def assess_risk(
     if "return" in original_code and "return" not in fixed_code:
         score -= 30
         reasons.append("Return statements may have been removed.")
+
+    original_return_count = len(re.findall(r"\breturn\b", original_code))
+    fixed_return_count = len(re.findall(r"\breturn\b", fixed_code))
+    if original_return_count != fixed_return_count:
+        score -= 15
+        reasons.append("Return statement count changed; behavior may have shifted.")
 
     if "except:" in original_code and "except:" not in fixed_code:
         # This is usually good, but still risky.
