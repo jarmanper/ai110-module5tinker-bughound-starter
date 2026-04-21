@@ -54,6 +54,11 @@ def assess_risk(
         score -= 20
         reasons.append("Fixed code is much shorter than original.")
 
+    line_ratio = len(fixed_lines) / max(1, len(original_lines))
+    if line_ratio > 2.0 or line_ratio < 0.5:
+        score -= 25
+        reasons.append("Large structural divergence between original and fixed code.")
+
     if "return" in original_code and "return" not in fixed_code:
         score -= 30
         reasons.append("Return statements may have been removed.")
