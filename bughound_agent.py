@@ -79,7 +79,7 @@ class BugHoundAgent:
         issues = self._parse_json_array_of_issues(raw)
 
         if issues is None:
-            self._log("ANALYZE", "LLM output was not parseable JSON. Falling back to heuristics.")
+            self._log("ANALYZE", "LLM output was not parseable JSON or had an invalid issue schema. Falling back to heuristics.")
             return self._heuristic_analyze(code_snippet)
 
         return issues
@@ -175,26 +175,45 @@ class BugHoundAgent:
         text = text.strip()
         parsed = self._try_json_loads(text)
         if isinstance(parsed, list):
-            return self._normalize_issues(parsed)
+            return self._validate_and_normalize_issues_strict(parsed)
 
         array_str = self._extract_first_json_array(text)
         if array_str:
             parsed2 = self._try_json_loads(array_str)
             if isinstance(parsed2, list):
-                return self._normalize_issues(parsed2)
+                return self._validate_and_normalize_issues_strict(parsed2)
 
         return None
 
-    def _normalize_issues(self, arr: List[Any]) -> List[Dict[str, str]]:
+    def _validate_and_normalize_issues_strict(self, arr: List[Any]) -> Optional[List[Dict[str, str]]]:
+        allowed_severities = {"low", "medium", "high"}
         issues: List[Dict[str, str]] = []
         for item in arr:
             if not isinstance(item, dict):
-                continue
+                return None
+            if not {"type", "severity", "msg"}.issubset(item.keys()):
+                return None
+
+            issue_type = item.get("type")
+            severity = item.get("severity")
+            msg = item.get("msg")
+
+            if not isinstance(issue_type, str) or not issue_type.strip():
+                return None
+            if not isinstance(msg, str) or not msg.strip():
+                return None
+            if not isinstance(severity, str):
+                return None
+
+            severity_clean = severity.strip().lower()
+            if severity_clean not in allowed_severities:
+                return None
+
             issues.append(
                 {
-                    "type": str(item.get("type", "Issue")),
-                    "severity": str(item.get("severity", "Unknown")),
-                    "msg": str(item.get("msg", "")).strip(),
+                    "type": issue_type.strip(),
+                    "severity": severity_clean.title(),
+                    "msg": msg.strip(),
                 }
             )
         return issues
